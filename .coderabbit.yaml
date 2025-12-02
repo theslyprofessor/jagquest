@@ -1,0 +1,32 @@
+# .coderabbit.yaml - JagQuest (Godot Game)
+language: en-US
+
+reviews:
+  auto_review:
+    enabled: true
+  drafts: false
+  request_changes_workflow: false
+
+path_filters:
+  - "!**/.git/**"
+  - "!**/.godot/**"
+  - "!**/*.import"
+  - "!**/*.png"
+  - "!**/*.svg"
+  - "!**/*.wav"
+  - "!**/*.ogg"
+  - "!**/*.tres"
+  - "!**/*.tscn"
+
+instructions: |
+  This is a Godot 4 game written in GDScript.
+  Focus on:
+  - Game logic correctness
+  - GDScript best practices
+  - Performance issues (process vs physics_process)
+  - Signal connection patterns
+  - Memory management (queue_free, etc.)
+  Skip:
+  - Scene file (.tscn) changes
+  - Resource file (.tres) changes
+  - Asset suggestions
