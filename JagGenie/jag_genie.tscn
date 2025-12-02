@@ -1,0 +1,95 @@
+[gd_scene load_steps=2 format=3 uid="uid://jaggenie_ui"]
+
+[ext_resource type="Script" path="res://JagGenie/jag_genie.gd" id="1_jaggenie"]
+
+[node name="JagGenie" type="CanvasLayer"]
+layer = 100
+script = ExtResource("1_jaggenie")
+
+[node name="Dimmer" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.6)
+
+[node name="Panel" type="Panel" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -250.0
+offset_right = 300.0
+offset_bottom = 250.0
+
+[node name="VBox" type="VBoxContainer" parent="Panel"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 15.0
+offset_top = 15.0
+offset_right = -15.0
+offset_bottom = -15.0
+
+[node name="Header" type="HBoxContainer" parent="Panel/VBox"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Panel/VBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "🐆 JagGenie"
+theme_override_font_sizes/font_size = 20
+
+[node name="CloseHint" type="Label" parent="Panel/VBox/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+text = "ESC to close"
+
+[node name="SearchInput" type="LineEdit" parent="Panel/VBox"]
+layout_mode = 2
+placeholder_text = "Search programs, buildings, people..."
+clear_button_enabled = true
+
+[node name="ResultsList" type="ItemList" parent="Panel/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+allow_reselect = true
+auto_height = true
+max_text_lines = 2
+
+[node name="InfoPanel" type="Panel" parent="Panel/VBox"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="VBox" type="VBoxContainer" parent="Panel/VBox/InfoPanel"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+
+[node name="InfoName" type="Label" parent="Panel/VBox/InfoPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+
+[node name="InfoType" type="Label" parent="Panel/VBox/InfoPanel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 12
+
+[node name="HSeparator" type="HSeparator" parent="Panel/VBox/InfoPanel/VBox"]
+layout_mode = 2
+
+[node name="InfoDescription" type="RichTextLabel" parent="Panel/VBox/InfoPanel/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+fit_content = true
+
+[node name="TeleportButton" type="Button" parent="Panel/VBox/InfoPanel/VBox"]
+layout_mode = 2
+text = "🚀 Teleport Here"
