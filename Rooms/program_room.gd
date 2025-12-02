@@ -2,18 +2,17 @@ extends Node2D
 class_name ProgramRoom
 
 # Program Room - Interior view for each academic program
-# Features: Zelda SNES-style 3D-ish perspective, program info, interactive elements
+# Zelda-style room with program information
 
 signal exit_requested
-signal person_interacted(person_id: String)
 
 # Room configuration
 @export var program_id: String = ""
-@export var room_theme_color: Color = Color.WHITE
 
 # References
-@onready var player: JaguarPlayer = $Player
-@onready var room_background: Sprite2D = $Background
+@onready var player = $Player
+@onready var background: ColorRect = $Background
+@onready var floor_rect: ColorRect = $Floor
 @onready var room_name_label: Label = $UI/RoomName
 @onready var info_panel: Panel = $UI/InfoPanel
 @onready var exit_area: Area2D = $ExitArea
@@ -38,135 +37,92 @@ func _load_program_data() -> void:
 
 func _setup_room() -> void:
 	if program_data.is_empty():
+		room_name_label.text = "Unknown Room"
 		return
 	
 	# Set room name
-	if room_name_label:
-		room_name_label.text = program_data.get("name", "Unknown Program")
+	room_name_label.text = program_data.get("name", "Unknown Program")
 	
-	# Apply theme color
+	# Apply theme color to background
 	if program_data.has("theme_color"):
-		room_theme_color = program_data["theme_color"]
-		_apply_theme_color()
+		var theme_color: Color = program_data["theme_color"]
+		background.color = theme_color.darkened(0.7)
+		floor_rect.color = theme_color.darkened(0.5)
 	
-	# Create interactive elements based on program
-	_setup_room_elements()
+	# Create room content
+	_create_room_content()
 
-func _apply_theme_color() -> void:
-	# Apply theme color to UI elements
-	pass  # Will be expanded with actual theming
-
-func _setup_room_elements() -> void:
-	# Create NPCs for program lead (if exists)
+func _create_room_content() -> void:
+	# Description display
+	var desc_label = Label.new()
+	desc_label.text = program_data.get("description", "")
+	desc_label.position = Vector2(30, 40)
+	desc_label.size = Vector2(260, 60)
+	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	desc_label.add_theme_font_size_override("font_size", 10)
+	add_child(desc_label)
+	
+	# Degrees list
+	var degrees = program_data.get("degrees", [])
+	var y_offset = 110
+	
+	var degrees_title = Label.new()
+	degrees_title.text = "📜 Degrees & Certificates:"
+	degrees_title.position = Vector2(30, y_offset)
+	degrees_title.add_theme_font_size_override("font_size", 11)
+	degrees_title.add_theme_color_override("font_color", Color(1, 0.85, 0.3))
+	add_child(degrees_title)
+	y_offset += 15
+	
+	for i in range(min(degrees.size(), 4)):  # Show up to 4 degrees
+		var degree = degrees[i]
+		var degree_label = Label.new()
+		degree_label.text = "• " + degree.get("name", "")
+		degree_label.position = Vector2(35, y_offset)
+		degree_label.add_theme_font_size_override("font_size", 9)
+		add_child(degree_label)
+		y_offset += 12
+	
+	# Program lead info (if exists)
 	if program_data.has("program_lead"):
 		var lead = program_data["program_lead"]
-		_create_npc(lead)
-	
-	# Create degree display stations
-	var degrees = program_data.get("degrees", [])
-	for i in range(degrees.size()):
-		_create_degree_station(degrees[i], i)
-	
-	# Create info kiosk
-	_create_info_kiosk()
+		_create_npc_display(lead)
 
-func _create_npc(person_data: Dictionary) -> void:
-	# Create an NPC that player can interact with
-	var npc = Area2D.new()
-	npc.name = "NPC_" + person_data.get("name", "Unknown").replace(" ", "_")
-	npc.position = Vector2(200, 100)  # Position will vary by room layout
+func _create_npc_display(person_data: Dictionary) -> void:
+	var npc_container = Control.new()
+	npc_container.position = Vector2(200, 50)
 	
-	# Collision
-	var collision = CollisionShape2D.new()
-	var shape = CircleShape2D.new()
-	shape.radius = 20
-	collision.shape = shape
-	npc.add_child(collision)
+	# NPC "sprite" (emoji placeholder)
+	var npc_icon = Label.new()
+	npc_icon.text = "👨‍🏫"
+	npc_icon.add_theme_font_size_override("font_size", 24)
+	npc_container.add_child(npc_icon)
 	
-	# Sprite (placeholder)
-	var sprite = Sprite2D.new()
-	sprite.name = "Sprite"
-	npc.add_child(sprite)
+	# Name
+	var name_label = Label.new()
+	name_label.text = person_data.get("name", "")
+	name_label.position = Vector2(0, 30)
+	name_label.add_theme_font_size_override("font_size", 10)
+	npc_container.add_child(name_label)
 	
-	# Label
-	var label = Label.new()
-	label.text = person_data.get("name", "")
-	label.position = Vector2(-40, -40)
-	npc.add_child(label)
+	# Title
+	var title_label = Label.new()
+	title_label.text = person_data.get("title", "")
+	title_label.position = Vector2(0, 42)
+	title_label.add_theme_font_size_override("font_size", 8)
+	title_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+	npc_container.add_child(title_label)
 	
-	# Store data
-	npc.set_meta("person_data", person_data)
-	
-	# Connect interaction
-	npc.input_event.connect(_on_npc_clicked.bind(npc))
-	
-	add_child(npc)
-
-func _create_degree_station(degree_data: Dictionary, index: int) -> void:
-	# Create a display showing degree info
-	var station = Area2D.new()
-	station.name = "Degree_" + str(index)
-	
-	# Position in a row
-	var x_pos = 100 + (index % 3) * 100
-	var y_pos = 200 + (index / 3) * 80
-	station.position = Vector2(x_pos, y_pos)
-	
-	# Visual
-	var label = Label.new()
-	label.text = "📜 " + degree_data.get("name", "Degree")
-	label.add_theme_font_size_override("font_size", 10)
-	station.add_child(label)
-	
-	# Store URL for click
-	station.set_meta("degree_url", degree_data.get("url", ""))
-	
-	add_child(station)
-
-func _create_info_kiosk() -> void:
-	# Central info display
-	pass
+	add_child(npc_container)
 
 func _connect_signals() -> void:
 	if exit_area:
 		exit_area.body_entered.connect(_on_exit_area_entered)
 
 func _input(event: InputEvent) -> void:
-	# Exit room with Escape
 	if event.is_action_pressed("ui_cancel"):
-		_exit_room()
+		exit_requested.emit()
 
 func _on_exit_area_entered(body: Node2D) -> void:
 	if body == player:
-		_exit_room()
-
-func _on_npc_clicked(viewport: Node, event: InputEvent, shape_idx: int, npc: Area2D) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		var person_data = npc.get_meta("person_data")
-		_show_person_info(person_data)
-
-func _show_person_info(person_data: Dictionary) -> void:
-	if info_panel:
-		info_panel.visible = true
-		# Update info panel content
-		var name_label = info_panel.get_node_or_null("Name")
-		if name_label:
-			name_label.text = person_data.get("name", "")
-		
-		var title_label = info_panel.get_node_or_null("Title")
-		if title_label:
-			title_label.text = person_data.get("title", "")
-		
-		var contact_label = info_panel.get_node_or_null("Contact")
-		if contact_label:
-			contact_label.text = "📧 " + person_data.get("email", "") + "\n📞 " + person_data.get("phone", "")
-
-func _exit_room() -> void:
-	exit_requested.emit()
-
-# Initialize room with specific program
-func setup(p_program_id: String) -> void:
-	program_id = p_program_id
-	if is_inside_tree():
-		_load_program_data()
-		_setup_room()
+		exit_requested.emit()

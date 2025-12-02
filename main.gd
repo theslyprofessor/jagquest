@@ -16,17 +16,15 @@ var current_state: GameState = GameState.CAMPUS_VIEW
 # Scene references
 @onready var overworld: Overworld = $Overworld
 @onready var jag_genie: JagGenie = $JagGenie
-@onready var transition_layer: CanvasLayer = $TransitionLayer
 @onready var transition_rect: ColorRect = $TransitionLayer/TransitionRect
 
 # Current room (if in ROOM_VIEW)
-var current_room: ProgramRoom = null
+var current_room: Node = null
 var current_building_id: String = ""
 
-# Preload room scene template
-const ProgramRoomScene = preload("res://Rooms/program_room.tscn") if ResourceLoader.exists("res://Rooms/program_room.tscn") else null
-
+# Preload
 var GameData = preload("res://Data/game_data.gd")
+var ProgramRoomScene = preload("res://Rooms/program_room.tscn")
 
 func _ready() -> void:
 	_connect_signals()
@@ -50,9 +48,12 @@ func _setup_initial_state() -> void:
 
 func _input(event: InputEvent) -> void:
 	# Global JagGenie toggle (Tab or G)
-	if event.is_action_pressed("jaggenie"):
-		if current_state == GameState.CAMPUS_VIEW:
-			_open_jag_genie()
+	if event.is_action_pressed("jaggenie") and current_state == GameState.CAMPUS_VIEW:
+		_open_jag_genie()
+	
+	# Exit room with Escape
+	if event.is_action_pressed("ui_cancel") and current_state == GameState.ROOM_VIEW:
+		_exit_room()
 
 func _open_jag_genie() -> void:
 	jag_genie.open()
@@ -63,18 +64,13 @@ func _on_jag_genie_closed() -> void:
 func _on_jag_genie_selected(entity_id: String, entity_type: String) -> void:
 	match entity_type:
 		"building":
-			# Teleport to building on campus
 			overworld.teleport_to_building(entity_id)
 		"program":
-			# Teleport to program's building, then optionally enter
 			var program = GameData.get_program(entity_id)
 			if not program.is_empty():
 				var building_id = program.get("building_id", "")
 				overworld.teleport_to_building(building_id)
-				# Optionally auto-enter the building
-				# _enter_building(building_id)
 		"person":
-			# Teleport to person's office building
 			var staff = GameData.STAFF.get(entity_id, {})
 			if not staff.is_empty():
 				var building_id = staff.get("building_id", "")
@@ -82,26 +78,9 @@ func _on_jag_genie_selected(entity_id: String, entity_type: String) -> void:
 
 func _on_building_selected(building_id: String) -> void:
 	current_building_id = building_id
-	_show_building_info(building_id)
 
 func _on_building_entered(building_id: String) -> void:
 	_enter_building(building_id)
-
-func _show_building_info(building_id: String) -> void:
-	var building = GameData.get_building(building_id)
-	if building.is_empty():
-		return
-	
-	# Update UI to show building info
-	var info_panel = overworld.get_node_or_null("UI/BuildingInfo")
-	if info_panel:
-		info_panel.visible = true
-		var name_label = info_panel.get_node_or_null("BuildingName")
-		if name_label:
-			name_label.text = building.get("name", "")
-		var desc_label = info_panel.get_node_or_null("BuildingDescription")
-		if desc_label:
-			desc_label.text = building.get("description", "")
 
 func _enter_building(building_id: String) -> void:
 	if current_state != GameState.CAMPUS_VIEW:
@@ -114,19 +93,17 @@ func _enter_building(building_id: String) -> void:
 	var programs = GameData.get_programs_in_building(building_id)
 	
 	if programs.is_empty():
-		# Building has no programs - just show info
 		print("No programs in building: ", building_id)
 		current_state = GameState.CAMPUS_VIEW
 		return
 	
-	# For now, enter the first program's room
-	# TODO: Show selection if multiple programs
+	# Enter the first program's room
 	var program = programs[0]
 	
 	# Play transition
 	await _play_enter_transition()
 	
-	# Load and show room
+	# Load room
 	_load_room(program["id"])
 	
 	current_state = GameState.ROOM_VIEW
@@ -136,53 +113,10 @@ func _load_room(program_id: String) -> void:
 	overworld.visible = false
 	
 	# Create room instance
-	if ProgramRoomScene:
-		current_room = ProgramRoomScene.instantiate()
-		current_room.setup(program_id)
-		current_room.exit_requested.connect(_on_room_exit_requested)
-		add_child(current_room)
-	else:
-		# Fallback: create basic room
-		_create_basic_room(program_id)
-
-func _create_basic_room(program_id: String) -> void:
-	var program = GameData.get_program(program_id)
-	
-	# Create a simple room display
-	var room = Node2D.new()
-	room.name = "Room_" + program_id
-	
-	# Background
-	var bg = ColorRect.new()
-	bg.size = Vector2(320, 180)
-	bg.color = program.get("theme_color", Color(0.2, 0.2, 0.3))
-	room.add_child(bg)
-	
-	# Title
-	var title = Label.new()
-	title.text = program.get("name", "Program Room")
-	title.position = Vector2(100, 20)
-	title.add_theme_font_size_override("font_size", 16)
-	room.add_child(title)
-	
-	# Description
-	var desc = Label.new()
-	desc.text = program.get("description", "")
-	desc.position = Vector2(20, 60)
-	desc.size = Vector2(280, 100)
-	desc.autowrap_mode = TextServer.AUTOWRAP_WORD
-	desc.add_theme_font_size_override("font_size", 10)
-	room.add_child(desc)
-	
-	# Exit hint
-	var exit_hint = Label.new()
-	exit_hint.text = "Press ESC to exit"
-	exit_hint.position = Vector2(100, 160)
-	exit_hint.add_theme_font_size_override("font_size", 8)
-	room.add_child(exit_hint)
-	
-	current_room = room
-	add_child(room)
+	current_room = ProgramRoomScene.instantiate()
+	current_room.program_id = program_id
+	current_room.exit_requested.connect(_on_room_exit_requested)
+	add_child(current_room)
 
 func _on_room_exit_requested() -> void:
 	_exit_room()
@@ -207,18 +141,13 @@ func _exit_room() -> void:
 	current_state = GameState.CAMPUS_VIEW
 
 func _play_enter_transition() -> void:
-	# Fade to black
 	var tween = create_tween()
 	tween.tween_property(transition_rect, "color", Color(0, 0, 0, 1), 0.3)
 	await tween.finished
-	
-	# Brief pause
 	await get_tree().create_timer(0.1).timeout
-	
-	# Fade from black
 	tween = create_tween()
 	tween.tween_property(transition_rect, "color", Color(0, 0, 0, 0), 0.3)
 	await tween.finished
 
 func _play_exit_transition() -> void:
-	await _play_enter_transition()  # Same animation for now
+	await _play_enter_transition()

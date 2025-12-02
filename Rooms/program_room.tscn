@@ -1,0 +1,102 @@
+[gd_scene load_steps=3 format=3 uid="uid://program_room_template"]
+
+[ext_resource type="Script" path="res://Rooms/program_room.gd" id="1_room"]
+[ext_resource type="PackedScene" uid="uid://cqj7xwh3h8kx2" path="res://Player/player.tscn" id="2_player"]
+
+[sub_resource type="RectangleShape2D" id="exit_shape"]
+size = Vector2(60, 20)
+
+[node name="ProgramRoom" type="Node2D"]
+script = ExtResource("1_room")
+
+[node name="Background" type="ColorRect" parent="."]
+offset_right = 320.0
+offset_bottom = 180.0
+color = Color(0.15, 0.15, 0.2, 1)
+
+[node name="Floor" type="ColorRect" parent="."]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 300.0
+offset_bottom = 160.0
+color = Color(0.25, 0.22, 0.2, 1)
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+position = Vector2(160, 140)
+
+[node name="ExitArea" type="Area2D" parent="."]
+position = Vector2(160, 170)
+collision_layer = 4
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ExitArea"]
+shape = SubResource("exit_shape")
+
+[node name="ExitLabel" type="Label" parent="ExitArea"]
+offset_left = -20.0
+offset_top = -15.0
+offset_right = 20.0
+offset_bottom = 5.0
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_font_sizes/font_size = 10
+text = "EXIT"
+horizontal_alignment = 1
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="RoomName" type="Label" parent="UI"]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -100.0
+offset_top = 10.0
+offset_right = 100.0
+offset_bottom = 35.0
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+
+[node name="InfoPanel" type="Panel" parent="UI"]
+visible = false
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -220.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 160.0
+
+[node name="VBox" type="VBoxContainer" parent="UI/InfoPanel"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+
+[node name="Name" type="Label" parent="UI/InfoPanel/VBox"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="UI/InfoPanel/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 11
+
+[node name="Contact" type="Label" parent="UI/InfoPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+
+[node name="ExitHint" type="Label" parent="UI"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -80.0
+offset_top = -25.0
+offset_right = 80.0
+offset_bottom = -10.0
+theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
+theme_override_font_sizes/font_size = 10
+text = "ESC or walk to EXIT to leave"
+horizontal_alignment = 1

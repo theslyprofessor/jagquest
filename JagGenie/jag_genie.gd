@@ -16,20 +16,14 @@ signal closed
 @onready var info_description: RichTextLabel = $Panel/VBox/InfoPanel/VBox/InfoDescription
 @onready var teleport_button: Button = $Panel/VBox/InfoPanel/VBox/TeleportButton
 
-# Preload icons
-const ICON_BUILDING = preload("res://Icons/building.png") if ResourceLoader.exists("res://Icons/building.png") else null
-const ICON_PROGRAM = preload("res://Icons/program.png") if ResourceLoader.exists("res://Icons/program.png") else null
-const ICON_PERSON = preload("res://Icons/person.png") if ResourceLoader.exists("res://Icons/person.png") else null
-const ICON_OFFICE = preload("res://Icons/office.png") if ResourceLoader.exists("res://Icons/office.png") else null
-
 var GameData = preload("res://Data/game_data.gd")
 var current_results: Array = []
 var selected_entity: Dictionary = {}
 
 func _ready() -> void:
 	visible = false
+	process_mode = Node.PROCESS_MODE_ALWAYS  # Work even when game is paused
 	_connect_signals()
-	_populate_initial_results()
 
 func _connect_signals() -> void:
 	search_input.text_changed.connect(_on_search_changed)
@@ -41,12 +35,10 @@ func _input(event: InputEvent) -> void:
 	if not visible:
 		return
 	
-	# Close on Escape
 	if event.is_action_pressed("ui_cancel"):
 		close()
 		get_viewport().set_input_as_handled()
 	
-	# Navigate results with arrow keys
 	if event.is_action_pressed("ui_down"):
 		_navigate_results(1)
 		get_viewport().set_input_as_handled()
@@ -54,7 +46,6 @@ func _input(event: InputEvent) -> void:
 		_navigate_results(-1)
 		get_viewport().set_input_as_handled()
 	
-	# Confirm selection with Enter
 	if event.is_action_pressed("ui_accept") and results_list.get_selected_items().size() > 0:
 		_on_result_activated(results_list.get_selected_items()[0])
 		get_viewport().set_input_as_handled()
@@ -64,7 +55,7 @@ func open() -> void:
 	search_input.text = ""
 	search_input.grab_focus()
 	_populate_initial_results()
-	get_tree().paused = true  # Pause game while JagGenie is open
+	get_tree().paused = true
 
 func close() -> void:
 	visible = false
@@ -87,29 +78,12 @@ func _update_results_display() -> void:
 	results_list.clear()
 	
 	for entity in current_results:
-		var icon = _get_entity_icon(entity)
 		var display_text = _get_display_text(entity)
-		
-		if icon:
-			results_list.add_item(display_text, icon)
-		else:
-			results_list.add_item(display_text)
+		results_list.add_item(display_text)
 	
-	# Auto-select first result
 	if results_list.item_count > 0:
 		results_list.select(0)
 		_on_result_selected(0)
-
-func _get_entity_icon(entity: Dictionary) -> Texture2D:
-	match entity.get("search_type", ""):
-		"building":
-			return ICON_BUILDING
-		"program":
-			return ICON_PROGRAM
-		"person":
-			return ICON_PERSON
-		_:
-			return null
 
 func _get_display_text(entity: Dictionary) -> String:
 	var prefix = ""
@@ -120,8 +94,6 @@ func _get_display_text(entity: Dictionary) -> String:
 			prefix = "📚 "
 		"person":
 			prefix = "👤 "
-		"office":
-			prefix = "🚪 "
 	
 	return prefix + entity.get("name", "Unknown")
 
@@ -147,7 +119,6 @@ func _on_result_selected(index: int) -> void:
 	_update_info_panel()
 
 func _on_result_activated(index: int) -> void:
-	# Double-click or Enter - teleport immediately
 	_on_teleport_pressed()
 
 func _update_info_panel() -> void:
@@ -158,21 +129,19 @@ func _update_info_panel() -> void:
 	info_panel.visible = true
 	info_name.text = selected_entity.get("name", "Unknown")
 	
-	# Type label with building location
 	var type_text = ""
 	match selected_entity.get("search_type", ""):
 		"building":
-			type_text = "Building"
+			type_text = "📍 Building"
 		"program":
 			var building_id = selected_entity.get("building_id", "")
 			var building = GameData.get_building(building_id)
-			type_text = "Program • " + building.get("name", "Unknown Building")
+			type_text = "📚 Program in " + building.get("name", "Unknown")
 		"person":
-			type_text = selected_entity.get("title", "Staff") + " • " + selected_entity.get("office", "")
+			type_text = "👤 " + selected_entity.get("title", "Staff")
 	
 	info_type.text = type_text
 	
-	# Description
 	var description = selected_entity.get("description", "")
 	if selected_entity.get("search_type") == "program":
 		var degrees = selected_entity.get("degrees", [])
@@ -181,9 +150,9 @@ func _update_info_panel() -> void:
 			for degree in degrees:
 				description += "• " + degree.get("name", "") + "\n"
 	elif selected_entity.get("search_type") == "person":
-		description = "Email: " + selected_entity.get("email", "N/A")
-		description += "\nPhone: " + selected_entity.get("phone", "N/A")
-		description += "\nOffice: " + selected_entity.get("office", "N/A")
+		description = "📧 " + selected_entity.get("email", "N/A")
+		description += "\n📞 " + selected_entity.get("phone", "N/A")
+		description += "\n🚪 Office: " + selected_entity.get("office", "N/A")
 	
 	info_description.text = description
 
