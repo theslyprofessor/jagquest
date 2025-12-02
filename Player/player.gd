@@ -2,12 +2,34 @@ extends CharacterBody2D
 class_name JaguarPlayer
 
 # JagQuest Player - The Jaguar navigator
-# Supports both keyboard (WASD/Arrows) and mouse-click navigation
+# Supports keyboard (WASD/Arrows) and Option+Click navigation
+# Features Zelda-style pulsating idle animation
 
-# Movement constants
-const MAX_SPEED: float = 120.0
-const ACCELERATION: float = 600.0
-const FRICTION: float = 500.0
+# Movement constants (base values at zoom 1.0)
+# Actual speed scales inversely with zoom so jaguar moves same % of viewport
+const BASE_MAX_SPEED: float = 150.0
+const BASE_ACCELERATION: float = 800.0
+const BASE_FRICTION: float = 600.0
+
+# =============================================================================
+# MASTER BOUNDS - All viewport/camera/player limits derive from these
+# =============================================================================
+# Map SVG is 816x1344 native, imported at 4x scale (see .import file)
+# Actual texture size: 3264 x 5376
+# Legend "CHULA VISTA CAMPUS..." starts at ~72% = y≈3870
+# These define the playable rectangle (excludes legend at bottom)
+const SVG_SCALE: float = 4.0
+const PLAYABLE_WIDTH: float = 816.0 * SVG_SCALE   # 3264
+const PLAYABLE_HEIGHT: float = 800.0 * SVG_SCALE  # 3200 - stops at OTAY LAKES ROAD
+
+# Padding from edges for player movement
+const PLAYER_PADDING: float = 10.0
+
+# Derived player bounds
+const MAP_MIN_X: float = PLAYER_PADDING
+const MAP_MAX_X: float = PLAYABLE_WIDTH - PLAYER_PADDING
+const MAP_MIN_Y: float = PLAYER_PADDING
+const MAP_MAX_Y: float = PLAYABLE_HEIGHT - PLAYER_PADDING
 
 # Navigation mode
 enum NavMode { KEYBOARD, MOUSE }
@@ -18,14 +40,70 @@ var mouse_arrival_threshold: float = 8.0
 # Animation
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
+@onready var camera: Camera2D = $Camera2D
+@onready var offscreen_indicator: Sprite2D = $OffscreenIndicator
 
 # Direction facing (for sprite)
 var facing_direction: Vector2 = Vector2.DOWN
+var is_moving: bool = false
+
+# Zoom settings - derived from playable area and window size
+# Window is set in project.godot (1200x900)
+# MIN_CAMERA_ZOOM calculated at runtime to fit PLAYABLE_WIDTH x PLAYABLE_HEIGHT
+const MAX_CAMERA_ZOOM: float = 4.0   # Close-up detail
+const ZOOM_STEP: float = 0.15
+var min_camera_zoom: float = 0.93    # Calculated in _ready()
+
+# Jaguar size - maintains constant screen size regardless of zoom
+# base_sprite_scale is the scale at zoom 1.0
+# Actual scale = base_sprite_scale / camera.zoom to counter zoom effect
+var base_sprite_scale: float = 0.15  # Set in _ready(), scale at zoom 1.0
+
+# Camera panning (click-drag)
+var is_panning: bool = false
+var pan_start_mouse: Vector2 = Vector2.ZERO
+var pan_start_camera: Vector2 = Vector2.ZERO
+
+# Hover/tooltip system
+signal hover_location_changed(location_data: Dictionary)
+signal hover_cleared()
 
 func _ready() -> void:
 	# Set collision layer (player = layer 1)
 	collision_layer = 1
 	collision_mask = 2  # Collide with buildings/obstacles
+	
+	# Calculate min zoom to fit playable area in viewport
+	var viewport_size = get_viewport().get_visible_rect().size
+	var zoom_to_fit_width = viewport_size.x / PLAYABLE_WIDTH
+	var zoom_to_fit_height = viewport_size.y / PLAYABLE_HEIGHT
+	min_camera_zoom = min(zoom_to_fit_width, zoom_to_fit_height)
+	
+	# Set camera limits to match playable area
+	if camera:
+		camera.limit_left = 0
+		camera.limit_top = 0
+		camera.limit_right = int(PLAYABLE_WIDTH)
+		camera.limit_bottom = int(PLAYABLE_HEIGHT)
+		# Start zoomed out to see full map
+		camera.zoom = Vector2(min_camera_zoom, min_camera_zoom)
+	
+	# Set jaguar base size - will be ~1/30th of viewport at zoom 1.0
+	# The actual scale adjusts with zoom to maintain constant screen size
+	if sprite:
+		var target_screen_size = viewport_size.x / 30.0  # 1/30th of viewport width
+		var sprite_native_size = sprite.texture.get_width() if sprite.texture else 1000.0
+		# At zoom 1.0, this scale gives target_screen_size on screen
+		base_sprite_scale = target_screen_size / sprite_native_size
+		_update_sprite_scale()
+	
+	# Start idle animation
+	if animation_player:
+		animation_player.play("idle")
+	
+	# Hide offscreen indicator initially
+	if offscreen_indicator:
+		offscreen_indicator.visible = false
 
 func _physics_process(delta: float) -> void:
 	var input_vector = _get_input_vector()
@@ -40,8 +118,22 @@ func _physics_process(delta: float) -> void:
 		NavMode.MOUSE:
 			_handle_mouse_movement(delta)
 	
-	_update_animation()
+	# Track if we're moving for animation
+	var was_moving = is_moving
+	is_moving = velocity.length() > 10
+	
+	# Switch animations when movement state changes
+	if is_moving != was_moving:
+		_update_animation()
+	
 	move_and_slide()
+	
+	# Clamp position to playable area (hard boundary)
+	global_position.x = clamp(global_position.x, MAP_MIN_X, MAP_MAX_X)
+	global_position.y = clamp(global_position.y, MAP_MIN_Y, MAP_MAX_Y)
+	
+	# Update offscreen indicator
+	_update_offscreen_indicator()
 
 func _get_input_vector() -> Vector2:
 	var input_vector = Vector2.ZERO
@@ -49,56 +141,214 @@ func _get_input_vector() -> Vector2:
 	input_vector.y = Input.get_action_strength("ui_down") - Input.get_action_strength("ui_up")
 	return input_vector.normalized()
 
+func _get_zoom_speed_multiplier() -> float:
+	# At zoom 1.0, multiplier = 1.0 (base speed)
+	# At zoom 2.0, multiplier = 0.5 (half speed, same % of viewport)
+	# At zoom 0.5, multiplier = 2.0 (double speed, same % of viewport)
+	if camera:
+		return 1.0 / camera.zoom.x
+	return 1.0
+
 func _handle_keyboard_movement(input_vector: Vector2, delta: float) -> void:
+	var speed_mult = _get_zoom_speed_multiplier()
+	var max_speed = BASE_MAX_SPEED * speed_mult
+	var acceleration = BASE_ACCELERATION * speed_mult
+	var friction = BASE_FRICTION * speed_mult
+	
 	if input_vector != Vector2.ZERO:
 		facing_direction = input_vector
-		velocity = velocity.move_toward(input_vector * MAX_SPEED, ACCELERATION * delta)
+		velocity = velocity.move_toward(input_vector * max_speed, acceleration * delta)
 	else:
-		velocity = velocity.move_toward(Vector2.ZERO, FRICTION * delta)
+		velocity = velocity.move_toward(Vector2.ZERO, friction * delta)
 
 func _handle_mouse_movement(delta: float) -> void:
-	var direction = (mouse_target - global_position).normalized()
-	var distance = global_position.distance_to(mouse_target)
+	var speed_mult = _get_zoom_speed_multiplier()
+	var max_speed = BASE_MAX_SPEED * speed_mult
+	var acceleration = BASE_ACCELERATION * speed_mult
+	var friction = BASE_FRICTION * speed_mult
+	
+	# Clamp mouse target to playable bounds
+	var clamped_target = Vector2(
+		clamp(mouse_target.x, MAP_MIN_X, MAP_MAX_X),
+		clamp(mouse_target.y, MAP_MIN_Y, MAP_MAX_Y)
+	)
+	
+	var direction = (clamped_target - global_position).normalized()
+	var distance = global_position.distance_to(clamped_target)
 	
 	if distance > mouse_arrival_threshold:
 		facing_direction = direction
-		velocity = velocity.move_toward(direction * MAX_SPEED, ACCELERATION * delta)
+		velocity = velocity.move_toward(direction * max_speed, acceleration * delta)
 	else:
-		velocity = velocity.move_toward(Vector2.ZERO, FRICTION * delta)
+		velocity = velocity.move_toward(Vector2.ZERO, friction * delta)
 		if velocity.length() < 10:
 			nav_mode = NavMode.KEYBOARD  # Return to keyboard mode when arrived
 
 func _input(event: InputEvent) -> void:
-	# Mouse click to set navigation target
+	# Mouse button events
 	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-			mouse_target = get_global_mouse_position()
-			nav_mode = NavMode.MOUSE
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed:
+				# Option+Click = walk to location
+				if event.alt_pressed and not event.meta_pressed and not event.ctrl_pressed:
+					mouse_target = get_global_mouse_position()
+					nav_mode = NavMode.MOUSE
+					get_viewport().set_input_as_handled()
+				# Regular click = start panning
+				else:
+					is_panning = true
+					pan_start_mouse = event.position
+					pan_start_camera = camera.offset if camera else Vector2.ZERO
+					get_viewport().set_input_as_handled()
+			else:
+				# Mouse released = stop panning
+				is_panning = false
+		
+		# Scroll wheel for camera zoom (no modifiers needed)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_zoom_camera(true)  # zoom OUT (reversed)
+			get_viewport().set_input_as_handled()
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_zoom_camera(false)  # zoom IN (reversed)
+			get_viewport().set_input_as_handled()
+	
+	# Mouse motion for panning
+	if event is InputEventMouseMotion and is_panning and camera:
+		var delta = event.position - pan_start_mouse
+		# Invert and scale by zoom (smaller zoom = larger world movement)
+		var pan_amount = -delta / camera.zoom.x
+		camera.offset = pan_start_camera + pan_amount
+		_clamp_camera_offset()
+		get_viewport().set_input_as_handled()
+	
+
+
+func _zoom_camera(zoom_in: bool) -> void:
+	if not camera:
+		return
+	
+	var current_zoom = camera.zoom.x
+	var new_zoom: float
+	
+	# Reversed: scroll up = zoom out, scroll down = zoom in
+	if zoom_in:
+		new_zoom = max(current_zoom - ZOOM_STEP, min_camera_zoom)  # zoom OUT
+	else:
+		new_zoom = min(current_zoom + ZOOM_STEP, MAX_CAMERA_ZOOM)  # zoom IN
+	
+	camera.zoom = Vector2(new_zoom, new_zoom)
+	_clamp_camera_offset()  # Re-clamp offset after zoom change
+	_update_sprite_scale()  # Keep jaguar same screen size
+
+func _update_sprite_scale() -> void:
+	# Partially counter-scale sprite so it grows a little when zooming in
+	# 0.0 = no compensation (normal zoom behavior - gets much bigger)
+	# 1.0 = full compensation (constant screen size)
+	# 0.7 = 70% compensation (gets a little bigger when zooming in)
+	const ZOOM_COMPENSATION: float = 0.7
+	
+	if sprite and camera:
+		# Blend between full zoom effect (1.0) and full compensation (1/zoom)
+		var compensation_factor = 1.0 / camera.zoom.x
+		var blended_factor = lerp(1.0, compensation_factor, ZOOM_COMPENSATION)
+		var adjusted_scale = base_sprite_scale * blended_factor
+		sprite.scale = Vector2(adjusted_scale, adjusted_scale)
+
+func _clamp_camera_offset() -> void:
+	if not camera:
+		return
+	
+	# Calculate viewable area at current zoom
+	var viewport_size = get_viewport().get_visible_rect().size
+	var view_size = viewport_size / camera.zoom.x
+	
+	# Map bounds (camera limits)
+	var map_width = camera.limit_right - camera.limit_left
+	var map_height = camera.limit_bottom - camera.limit_top
+	
+	# If view is larger than map, center it (no panning needed)
+	if view_size.x >= map_width:
+		camera.offset.x = 0
+	else:
+		# Clamp offset so camera stays within map bounds
+		var max_offset_x = (map_width - view_size.x) / 2
+		camera.offset.x = clamp(camera.offset.x, -max_offset_x, max_offset_x)
+	
+	if view_size.y >= map_height:
+		camera.offset.y = 0
+	else:
+		var max_offset_y = (map_height - view_size.y) / 2
+		camera.offset.y = clamp(camera.offset.y, -max_offset_y, max_offset_y)
+
+func _update_offscreen_indicator() -> void:
+	if not offscreen_indicator or not camera:
+		return
+	
+	# Get the visible rect in world coordinates
+	var viewport_size = get_viewport().get_visible_rect().size
+	var view_size = viewport_size / camera.zoom.x
+	var camera_center = global_position + camera.offset
+	
+	var view_rect = Rect2(
+		camera_center - view_size / 2,
+		view_size
+	)
+	
+	# Check if player is visible
+	if view_rect.has_point(global_position):
+		offscreen_indicator.visible = false
+		return
+	
+	# Player is offscreen - show indicator at edge pointing to player
+	offscreen_indicator.visible = true
+	
+	# Calculate direction from camera center to player
+	var dir_to_player = (global_position - camera_center).normalized()
+	
+	# Calculate edge position (in local coords relative to player)
+	var edge_margin = 30.0  # pixels from edge
+	var half_view = view_size / 2 - Vector2(edge_margin, edge_margin)
+	
+	# Find intersection with viewport edge
+	var indicator_pos = Vector2.ZERO
+	if abs(dir_to_player.x) > abs(dir_to_player.y):
+		# Hits left or right edge
+		indicator_pos.x = sign(dir_to_player.x) * half_view.x
+		indicator_pos.y = dir_to_player.y / abs(dir_to_player.x) * half_view.x
+		indicator_pos.y = clamp(indicator_pos.y, -half_view.y, half_view.y)
+	else:
+		# Hits top or bottom edge
+		indicator_pos.y = sign(dir_to_player.y) * half_view.y
+		indicator_pos.x = dir_to_player.x / abs(dir_to_player.y) * half_view.y
+		indicator_pos.x = clamp(indicator_pos.x, -half_view.x, half_view.x)
+	
+	# Position is relative to camera center, but indicator is child of player
+	# So we need to offset by the camera offset
+	offscreen_indicator.position = indicator_pos + camera.offset
+	
+	# Rotate to point toward player (from indicator's perspective, point outward)
+	offscreen_indicator.rotation = dir_to_player.angle()
 
 func _update_animation() -> void:
-	# Determine animation based on facing direction and movement
-	var is_moving = velocity.length() > 10
+	if not animation_player:
+		return
 	
-	# Simple 4-direction facing
-	var anim_suffix = ""
-	if abs(facing_direction.x) > abs(facing_direction.y):
-		anim_suffix = "right" if facing_direction.x > 0 else "left"
+	if is_moving:
+		if animation_player.current_animation != "walk":
+			animation_player.play("walk")
 	else:
-		anim_suffix = "down" if facing_direction.y > 0 else "up"
+		if animation_player.current_animation != "idle":
+			animation_player.play("idle")
 	
-	var anim_name = "walk_" + anim_suffix if is_moving else "idle_" + anim_suffix
-	
-	# Play animation if it exists
-	if animation_player and animation_player.has_animation(anim_name):
-		if animation_player.current_animation != anim_name:
-			animation_player.play(anim_name)
-	
-	# Flip sprite for left/right (if using single sprite)
+	# Flip sprite for left/right movement
 	if sprite:
-		sprite.flip_h = facing_direction.x < 0
+		if abs(facing_direction.x) > 0.1:
+			sprite.flip_h = facing_direction.x < 0
 
 # Teleport to position (used by JagGenie)
 func teleport_to(target: Vector2) -> void:
-	global_position = target
+	# Clamp target to playable bounds
+	global_position.x = clamp(target.x, MAP_MIN_X, MAP_MAX_X)
+	global_position.y = clamp(target.y, MAP_MIN_Y, MAP_MAX_Y)
 	velocity = Vector2.ZERO
 	nav_mode = NavMode.KEYBOARD

@@ -2,29 +2,68 @@ extends Node2D
 class_name ProgramRoom
 
 # Program Room - Interior view for each academic program
-# Zelda-style room with program information
+# Features:
+# - Program Lead NPC at front (click for contact modal)
+# - Catalog page icons (AS/Certificate clickables)
+# - Program page link
+# - Department subtitle
 
 signal exit_requested
 
 # Room configuration
 @export var program_id: String = ""
 
-# References
-@onready var player = $Player
-@onready var background: ColorRect = $Background
-@onready var floor_rect: ColorRect = $Floor
-@onready var room_name_label: Label = $UI/RoomName
-@onready var info_panel: Panel = $UI/InfoPanel
-@onready var exit_area: Area2D = $ExitArea
+# References - using get_node_or_null for safety
+var background: ColorRect
+var floor_tiles: ColorRect
+var wall_top: ColorRect
+var room_title: Label
+var dept_subtitle: Label
+var description_label: Label
+var catalog_container: HBoxContainer
+var npc_container: Control
+var npc_sprite: Sprite2D
+var npc_name: Label
+var npc_title: Label
+var npc_button: Button
+var modal_panel: Panel
+var modal_title: Label
+var modal_content: RichTextLabel
+var modal_close: Button
+var exit_button: Button
+var program_page_button: Button
 
-# Room data
+# Room data (GameData is an autoload singleton)
 var program_data: Dictionary = {}
-var GameData = preload("res://Data/game_data.gd")
 
 func _ready() -> void:
+	_get_node_references()
 	_load_program_data()
 	_setup_room()
+	_create_catalog_icons()
+	_setup_npc()
 	_connect_signals()
+	_hide_modal()
+
+func _get_node_references() -> void:
+	background = get_node_or_null("Background")
+	floor_tiles = get_node_or_null("FloorTiles")
+	wall_top = get_node_or_null("WallTop")
+	room_title = get_node_or_null("UI/TopBar/RoomTitle")
+	dept_subtitle = get_node_or_null("UI/TopBar/DeptSubtitle")
+	description_label = get_node_or_null("UI/DescriptionPanel/Description")
+	catalog_container = get_node_or_null("UI/CatalogContainer")
+	npc_container = get_node_or_null("NPCArea")
+	npc_sprite = get_node_or_null("NPCArea/NPCSprite")
+	npc_name = get_node_or_null("NPCArea/NPCName")
+	npc_title = get_node_or_null("NPCArea/NPCTitle")
+	npc_button = get_node_or_null("NPCArea/NPCButton")
+	modal_panel = get_node_or_null("UI/ModalPanel")
+	modal_title = get_node_or_null("UI/ModalPanel/VBox/ModalTitle")
+	modal_content = get_node_or_null("UI/ModalPanel/VBox/ModalContent")
+	modal_close = get_node_or_null("UI/ModalPanel/VBox/ModalClose")
+	exit_button = get_node_or_null("UI/ExitButton")
+	program_page_button = get_node_or_null("UI/ProgramPageButton")
 
 func _load_program_data() -> void:
 	if program_id.is_empty():
@@ -37,92 +76,159 @@ func _load_program_data() -> void:
 
 func _setup_room() -> void:
 	if program_data.is_empty():
-		room_name_label.text = "Unknown Room"
+		if room_title:
+			room_title.text = "Unknown Room"
 		return
 	
-	# Set room name
-	room_name_label.text = program_data.get("name", "Unknown Program")
+	# Set room title
+	if room_title:
+		room_title.text = program_data.get("name", "Unknown Program")
 	
-	# Apply theme color to background
+	# Set department subtitle
+	if dept_subtitle:
+		var dept = program_data.get("department", "")
+		dept_subtitle.text = dept + " Department"
+	
+	# Set description
+	if description_label:
+		description_label.text = program_data.get("description", "")
+	
+	# Apply theme color
 	if program_data.has("theme_color"):
 		var theme_color: Color = program_data["theme_color"]
-		background.color = theme_color.darkened(0.7)
-		floor_rect.color = theme_color.darkened(0.5)
-	
-	# Create room content
-	_create_room_content()
+		if wall_top:
+			wall_top.color = theme_color.darkened(0.6)
+		if floor_tiles:
+			floor_tiles.color = theme_color.darkened(0.4)
+		if background:
+			background.color = theme_color.darkened(0.8)
 
-func _create_room_content() -> void:
-	# Description display
-	var desc_label = Label.new()
-	desc_label.text = program_data.get("description", "")
-	desc_label.position = Vector2(30, 40)
-	desc_label.size = Vector2(260, 60)
-	desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	desc_label.add_theme_font_size_override("font_size", 10)
-	add_child(desc_label)
+func _create_catalog_icons() -> void:
+	if not catalog_container:
+		return
 	
-	# Degrees list
-	var degrees = program_data.get("degrees", [])
-	var y_offset = 110
+	# Clear existing catalog buttons
+	for child in catalog_container.get_children():
+		child.queue_free()
 	
-	var degrees_title = Label.new()
-	degrees_title.text = "📜 Degrees & Certificates:"
-	degrees_title.position = Vector2(30, y_offset)
-	degrees_title.add_theme_font_size_override("font_size", 11)
-	degrees_title.add_theme_color_override("font_color", Color(1, 0.85, 0.3))
-	add_child(degrees_title)
-	y_offset += 15
+	var catalog_pages = program_data.get("catalog_pages", [])
 	
-	for i in range(min(degrees.size(), 4)):  # Show up to 4 degrees
-		var degree = degrees[i]
-		var degree_label = Label.new()
-		degree_label.text = "• " + degree.get("name", "")
-		degree_label.position = Vector2(35, y_offset)
-		degree_label.add_theme_font_size_override("font_size", 9)
-		add_child(degree_label)
-		y_offset += 12
-	
-	# Program lead info (if exists)
-	if program_data.has("program_lead"):
-		var lead = program_data["program_lead"]
-		_create_npc_display(lead)
+	for page in catalog_pages:
+		var btn = Button.new()
+		var page_type = page.get("type", "")
+		var page_name = page.get("name", "")
+		var page_url = page.get("url", "")
+		
+		# Style based on type
+		if page_type == "Associate":
+			btn.text = "AS: " + page_name
+			btn.add_theme_color_override("font_color", Color(0.3, 0.7, 0.4))
+		else:
+			btn.text = "Cert: " + page_name
+			btn.add_theme_color_override("font_color", Color(0.8, 0.6, 0.2))
+		
+		btn.tooltip_text = "View catalog page: " + page_name
+		btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		
+		# Connect to open URL
+		var url_copy = page_url  # Capture for lambda
+		btn.pressed.connect(func(): _open_catalog_page(page_name, url_copy))
+		
+		catalog_container.add_child(btn)
 
-func _create_npc_display(person_data: Dictionary) -> void:
-	var npc_container = Control.new()
-	npc_container.position = Vector2(200, 50)
+func _setup_npc() -> void:
+	var lead = program_data.get("program_lead", null)
 	
-	# NPC "sprite" (emoji placeholder)
-	var npc_icon = Label.new()
-	npc_icon.text = "👨‍🏫"
-	npc_icon.add_theme_font_size_override("font_size", 24)
-	npc_container.add_child(npc_icon)
+	if lead == null:
+		# No program lead - hide NPC area
+		if npc_container:
+			npc_container.visible = false
+		return
 	
-	# Name
-	var name_label = Label.new()
-	name_label.text = person_data.get("name", "")
-	name_label.position = Vector2(0, 30)
-	name_label.add_theme_font_size_override("font_size", 10)
-	npc_container.add_child(name_label)
-	
-	# Title
-	var title_label = Label.new()
-	title_label.text = person_data.get("title", "")
-	title_label.position = Vector2(0, 42)
-	title_label.add_theme_font_size_override("font_size", 8)
-	title_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
-	npc_container.add_child(title_label)
-	
-	add_child(npc_container)
+	if npc_container:
+		npc_container.visible = true
+	if npc_name:
+		npc_name.text = lead.get("name", "Program Lead")
+	if npc_title:
+		npc_title.text = lead.get("title", "")
+	if npc_button:
+		npc_button.text = "Talk"
+		npc_button.set_meta("lead_data", lead)
 
 func _connect_signals() -> void:
-	if exit_area:
-		exit_area.body_entered.connect(_on_exit_area_entered)
+	# NPC button
+	if npc_button:
+		npc_button.pressed.connect(_on_npc_clicked)
+	
+	# Modal close
+	if modal_close:
+		modal_close.pressed.connect(_hide_modal)
+	
+	# Exit button
+	if exit_button:
+		exit_button.pressed.connect(_on_exit_pressed)
+	
+	# Program page button
+	if program_page_button:
+		program_page_button.pressed.connect(_on_program_page_pressed)
+	
+	# Modal content URL clicks
+	if modal_content:
+		modal_content.meta_clicked.connect(_on_modal_content_meta_clicked)
 
 func _input(event: InputEvent) -> void:
+	# ESC to close modal or exit room
 	if event.is_action_pressed("ui_cancel"):
-		exit_requested.emit()
+		if modal_panel and modal_panel.visible:
+			_hide_modal()
+		else:
+			exit_requested.emit()
 
-func _on_exit_area_entered(body: Node2D) -> void:
-	if body == player:
-		exit_requested.emit()
+func _on_npc_clicked() -> void:
+	if not npc_button:
+		return
+	var lead = npc_button.get_meta("lead_data", {})
+	if lead.is_empty():
+		return
+	
+	_show_contact_modal(lead)
+
+func _show_contact_modal(person: Dictionary) -> void:
+	if not modal_panel:
+		return
+	
+	modal_panel.visible = true
+	
+	if modal_title:
+		modal_title.text = person.get("name", "Contact")
+	
+	if modal_content:
+		var content = "[b]" + person.get("title", "") + "[/b]\n\n"
+		content += "Email: " + person.get("email", "N/A") + "\n"
+		content += "Phone: " + person.get("phone", "N/A") + "\n"
+		content += "Office: " + person.get("office", "N/A") + "\n\n"
+		
+		var contact_url = person.get("contact_url", "")
+		if not contact_url.is_empty():
+			content += "[url=" + contact_url + "]View Full Profile[/url]"
+		
+		modal_content.text = content
+
+func _hide_modal() -> void:
+	if modal_panel:
+		modal_panel.visible = false
+
+func _open_catalog_page(_page_name: String, url: String) -> void:
+	if not url.is_empty():
+		OS.shell_open(url)
+
+func _on_exit_pressed() -> void:
+	exit_requested.emit()
+
+func _on_program_page_pressed() -> void:
+	var url = program_data.get("program_page", "")
+	if not url.is_empty():
+		OS.shell_open(url)
+
+func _on_modal_content_meta_clicked(meta) -> void:
+	OS.shell_open(str(meta))

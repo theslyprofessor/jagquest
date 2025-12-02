@@ -81,10 +81,92 @@ All game data is in `Data/game_data.gd`:
 | Action | Key(s) |
 |--------|--------|
 | Move | WASD / Arrow keys |
-| Move to point | Left click |
+| Move to point | Option+Click |
+| Zoom | Scroll wheel, -/= |
+| Resize Jaguar | [ / ] |
 | JagGenie | Tab or G |
 | Interact | E |
 | Exit/Cancel | Escape |
+
+## Viewport & Camera System
+
+The game uses a **unified bounds system** where all limits derive from master constants in `Player/player.gd`.
+
+### Master Constants (Single Source of Truth)
+
+All bounds are defined in `Player/player.gd` lines 14-32:
+
+```gdscript
+const SVG_SCALE: float = 4.0
+const PLAYABLE_WIDTH: float = 816.0 * SVG_SCALE   # 3264
+const PLAYABLE_HEIGHT: float = 880.0 * SVG_SCALE  # 3520 - adjust to hide legend
+
+const PLAYER_PADDING: float = 10.0
+const MAP_MIN_X: float = PLAYER_PADDING           # Derived
+const MAP_MAX_X: float = PLAYABLE_WIDTH - PLAYER_PADDING
+const MAP_MIN_Y: float = PLAYER_PADDING
+const MAP_MAX_Y: float = PLAYABLE_HEIGHT - PLAYER_PADDING
+```
+
+### How It Works
+
+1. **SVG imported at 4x scale** (see `Assets/campus_map_clean.svg.import`)
+2. **PLAYABLE_WIDTH/HEIGHT** define the visible/walkable rectangle
+3. **Camera limits** set at runtime from these constants in `_ready()`
+4. **Min zoom** calculated automatically: `min(viewport_w/PLAYABLE_WIDTH, viewport_h/PLAYABLE_HEIGHT)`
+5. **Player bounds** derived with padding from playable area
+
+### To Adjust the Playable Area
+
+**Only edit ONE place:** `Player/player.gd` line 23
+
+```gdscript
+const PLAYABLE_HEIGHT: float = 880.0 * SVG_SCALE  # Change 880.0 to show more/less
+```
+
+- **Increase** (e.g., 920.0) → shows more of the legend
+- **Decrease** (e.g., 850.0) → crops more of the legend
+
+The scene file (`player.tscn`) has initial values but they're **overwritten at runtime** by `_ready()`.
+
+### Bounds Hierarchy
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  VIEWPORT (project.godot: 1200 x 900)                   │
+│  - Window pixel size                                    │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │  CAMERA LIMITS (set from PLAYABLE_WIDTH/HEIGHT)   │  │
+│  │  - 0 to 3264 (width), 0 to 3520 (height)          │  │
+│  │  - Min zoom calculated to fit this in viewport    │  │
+│  │                                                   │  │
+│  │  ┌─────────────────────────────────────────────┐  │  │
+│  │  │  WALKABLE AREA (with PLAYER_PADDING)        │  │  │
+│  │  │  - 10 to 3254 (X), 10 to 3510 (Y)           │  │  │
+│  │  └─────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Current Values
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `SVG_SCALE` | 4.0 | Import scale from .import file |
+| `PLAYABLE_WIDTH` | 3264 | 816 × 4 |
+| `PLAYABLE_HEIGHT` | 3520 | 880 × 4 (adjust 880 to tune) |
+| `PLAYER_PADDING` | 10 | Edge buffer for jaguar |
+| `MAX_CAMERA_ZOOM` | 4.0 | Maximum zoom in |
+| `min_camera_zoom` | ~0.27 | Calculated at runtime |
+
+### Features
+
+- **Click-drag panning:** Regular click+drag moves camera
+- **Option+Click:** Walk jaguar to location  
+- **Scroll wheel:** Zoom in/out (reversed: up=out, down=in)
+- **Zoom-relative speed:** Jaguar moves same % of viewport at any zoom
+- **Off-screen indicator:** Shows jaguar position when panned away
 
 ## Running the Game
 
