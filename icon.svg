@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- JagQuest Icon - SWC Jaguar themed -->
+  <defs>
+    <linearGradient id="jagGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B1A1A;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#5C0D0D;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#jagGrad)" stroke="#FFD700" stroke-width="4"/>
+  <!-- Stylized J for JagQuest -->
+  <text x="64" y="85" font-family="Arial Black, sans-serif" font-size="60" fill="#FFD700" text-anchor="middle" font-weight="bold">J</text>
+  <!-- Quest star accent -->
+  <polygon points="100,25 103,35 113,35 105,42 108,52 100,46 92,52 95,42 87,35 97,35" fill="#FFD700"/>
+</svg>
