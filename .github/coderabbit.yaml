@@ -1,0 +1,50 @@
+# CodeRabbit Configuration for JagQuest
+# AI-powered code reviews for Godot 4 GDScript
+
+language: en-US
+
+reviews:
+  # Enable automatic reviews on PRs
+  auto_review:
+    enabled: true
+    drafts: false
+    
+  # Review profile - educational game project
+  profile: assertive
+  
+  # Focus areas for this project
+  path_instructions:
+    - path: "**/*.gd"
+      instructions: |
+        This is a Godot 4 GDScript project. Focus on:
+        - Godot 4 best practices (signals, @export, @onready)
+        - Type hints for GDScript
+        - Node lifecycle (_ready, _process, _physics_process)
+        - Memory management (queue_free, weak references)
+        - Signal connections and disconnections
+        
+    - path: "Data/**"
+      instructions: |
+        Game data files. Ensure:
+        - Data structures are consistent
+        - All required fields are present
+        - URLs and contact info are valid format
+        
+    - path: "**/*.tscn"
+      instructions: |
+        Godot scene files. Check for:
+        - Proper node hierarchy
+        - Resource references are valid
+        - No orphaned nodes
+        
+  # Request changes for critical issues
+  request_changes_workflow: true
+
+# Code style preferences
+tone_instructions: |
+  This is an educational game for Southwestern College (SWC).
+  Be constructive and educational in feedback.
+  Consider that this may be reviewed by students learning game development.
+
+# Early access features
+early_access: true
