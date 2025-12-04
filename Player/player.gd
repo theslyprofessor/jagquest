@@ -14,13 +14,16 @@ const BASE_FRICTION: float = 600.0
 # =============================================================================
 # MASTER BOUNDS - All viewport/camera/player limits derive from these
 # =============================================================================
-# Map SVG is 816x1344 native, imported at 4x scale (see .import file)
-# Actual texture size: 3264 x 5376
-# Legend "CHULA VISTA CAMPUS..." starts at ~72% = y≈3870
-# These define the playable rectangle (excludes legend at bottom)
-const SVG_SCALE: float = 4.0
-const PLAYABLE_WIDTH: float = 816.0 * SVG_SCALE   # 3264
-const PLAYABLE_HEIGHT: float = 800.0 * SVG_SCALE  # 3200 - stops at OTAY LAKES ROAD
+# Campus map SVG dimensions (from campus_map.svg)
+# SVG is 803 x 780 pixels, imported at 2x scale for crisp zoom
+const SVG_SCALE: float = 2.0
+const SVG_WIDTH: float = 803.0
+const SVG_HEIGHT: float = 780.0
+const PLAYABLE_WIDTH: float = SVG_WIDTH * SVG_SCALE   # 6424
+const PLAYABLE_HEIGHT: float = SVG_HEIGHT * SVG_SCALE # 6240
+
+# UI bar is now in separate Control, not in SubViewport
+# SubViewport is exactly 1200x900 - no subtraction needed
 
 # Padding from edges for player movement
 const PLAYER_PADDING: float = 10.0
@@ -69,15 +72,12 @@ signal hover_location_changed(location_data: Dictionary)
 signal hover_cleared()
 
 func _ready() -> void:
+	# CRITICAL: Make sure player respects pause (for JagGenie)
+	process_mode = Node.PROCESS_MODE_PAUSABLE
+	
 	# Set collision layer (player = layer 1)
 	collision_layer = 1
 	collision_mask = 2  # Collide with buildings/obstacles
-	
-	# Calculate min zoom to fit playable area in viewport
-	var viewport_size = get_viewport().get_visible_rect().size
-	var zoom_to_fit_width = viewport_size.x / PLAYABLE_WIDTH
-	var zoom_to_fit_height = viewport_size.y / PLAYABLE_HEIGHT
-	min_camera_zoom = min(zoom_to_fit_width, zoom_to_fit_height)
 	
 	# Set camera limits to match playable area
 	if camera:
@@ -85,17 +85,6 @@ func _ready() -> void:
 		camera.limit_top = 0
 		camera.limit_right = int(PLAYABLE_WIDTH)
 		camera.limit_bottom = int(PLAYABLE_HEIGHT)
-		# Start zoomed out to see full map
-		camera.zoom = Vector2(min_camera_zoom, min_camera_zoom)
-	
-	# Set jaguar base size - will be ~1/30th of viewport at zoom 1.0
-	# The actual scale adjusts with zoom to maintain constant screen size
-	if sprite:
-		var target_screen_size = viewport_size.x / 30.0  # 1/30th of viewport width
-		var sprite_native_size = sprite.texture.get_width() if sprite.texture else 1000.0
-		# At zoom 1.0, this scale gives target_screen_size on screen
-		base_sprite_scale = target_screen_size / sprite_native_size
-		_update_sprite_scale()
 	
 	# Start idle animation
 	if animation_player:
@@ -104,8 +93,42 @@ func _ready() -> void:
 	# Hide offscreen indicator initially
 	if offscreen_indicator:
 		offscreen_indicator.visible = false
+	
+	# Defer zoom calculation until viewport is ready
+	call_deferred("_recalculate_zoom")
+
+func _recalculate_zoom() -> void:
+	# Calculate min zoom to fit playable area in viewport
+	var viewport_size = get_viewport().get_visible_rect().size
+	print("Player recalculating zoom with viewport size: ", viewport_size)
+	
+	if viewport_size.x < 10 or viewport_size.y < 10:
+		# Viewport not ready yet, try again next frame
+		await get_tree().process_frame
+		_recalculate_zoom()
+		return
+	
+	var zoom_to_fit_width = viewport_size.x / PLAYABLE_WIDTH
+	var zoom_to_fit_height = viewport_size.y / PLAYABLE_HEIGHT
+	min_camera_zoom = min(zoom_to_fit_width, zoom_to_fit_height)
+	print("Min camera zoom: ", min_camera_zoom)
+	
+	# Set initial zoom
+	if camera:
+		camera.zoom = Vector2(min_camera_zoom, min_camera_zoom)
+	
+	# Set jaguar base size - will be ~1/30th of viewport at zoom 1.0
+	if sprite:
+		var target_screen_size = viewport_size.x / 30.0
+		var sprite_native_size = sprite.texture.get_width() if sprite.texture else 1000.0
+		base_sprite_scale = target_screen_size / sprite_native_size
+		_update_sprite_scale()
 
 func _physics_process(delta: float) -> void:
+	# Don't run physics when paused (for JagGenie)
+	if get_tree().paused:
+		return
+	
 	var input_vector = _get_input_vector()
 	
 	# Keyboard input takes priority
@@ -139,6 +162,10 @@ func _get_input_vector() -> Vector2:
 	var input_vector = Vector2.ZERO
 	input_vector.x = Input.get_action_strength("ui_right") - Input.get_action_strength("ui_left")
 	input_vector.y = Input.get_action_strength("ui_down") - Input.get_action_strength("ui_up")
+	
+	if input_vector != Vector2.ZERO:
+		print("  -> RAW INPUT DETECTED: ", input_vector)
+	
 	return input_vector.normalized()
 
 func _get_zoom_speed_multiplier() -> float:
@@ -204,12 +231,16 @@ func _input(event: InputEvent) -> void:
 				# Mouse released = stop panning
 				is_panning = false
 		
-		# Scroll wheel for camera zoom (no modifiers needed)
-		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			_zoom_camera(true)  # zoom OUT (reversed)
+		# Note: Scroll wheel zoom is handled by main.gd and forwarded via zoom_camera_external()
+		# This ensures it works properly through the SubViewport architecture
+	
+	# Keyboard zoom: R = zoom in, T = zoom out
+	if event is InputEventKey and event.pressed:
+		if event.keycode == KEY_R:
+			_zoom_camera(true)  # Zoom in
 			get_viewport().set_input_as_handled()
-		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			_zoom_camera(false)  # zoom IN (reversed)
+		elif event.keycode == KEY_T:
+			_zoom_camera(false)  # Zoom out
 			get_viewport().set_input_as_handled()
 	
 	# Mouse motion for panning
@@ -239,6 +270,11 @@ func _zoom_camera(zoom_in: bool) -> void:
 	camera.zoom = Vector2(new_zoom, new_zoom)
 	_clamp_camera_offset()  # Re-clamp offset after zoom change
 	_update_sprite_scale()  # Keep jaguar same screen size
+
+# External zoom function (called from main.gd for SubViewport input forwarding)
+func zoom_camera_external(zoom_in: bool) -> void:
+	print("zoom_camera_external called: zoom_in=", zoom_in)
+	_zoom_camera(zoom_in)
 
 func _update_sprite_scale() -> void:
 	# Partially counter-scale sprite so it grows a little when zooming in

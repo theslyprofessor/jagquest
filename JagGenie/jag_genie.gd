@@ -57,25 +57,29 @@ func _connect_signals() -> void:
 		results_list.item_activated.connect(_on_result_activated)
 	if action_button:
 		action_button.pressed.connect(_on_action_pressed)
+	if info_description:
+		info_description.meta_clicked.connect(_on_meta_clicked)
 
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
 	
-	if event.is_action_pressed("ui_cancel"):
-		close()
-		get_viewport().set_input_as_handled()
-	
-	if event.is_action_pressed("ui_down"):
-		_navigate_results(1)
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_up"):
-		_navigate_results(-1)
-		get_viewport().set_input_as_handled()
-	
-	if event.is_action_pressed("ui_accept") and results_list and results_list.get_selected_items().size() > 0:
-		_on_result_activated(results_list.get_selected_items()[0])
-		get_viewport().set_input_as_handled()
+	# Only respond to specific keys in JagGenie to avoid conflicts with typing
+	if event is InputEventKey and event.pressed:
+		match event.keycode:
+			KEY_ESCAPE:
+				close()
+				get_viewport().set_input_as_handled()
+			KEY_DOWN:
+				_navigate_results(1)
+				get_viewport().set_input_as_handled()
+			KEY_UP:
+				_navigate_results(-1)
+				get_viewport().set_input_as_handled()
+			KEY_ENTER:
+				if results_list and results_list.get_selected_items().size() > 0:
+					_on_result_activated(results_list.get_selected_items()[0])
+					get_viewport().set_input_as_handled()
 
 func open() -> void:
 	visible = true
@@ -228,7 +232,11 @@ func _update_info_panel() -> void:
 	# Add contact info for people
 	elif search_type == "person":
 		description = "[b]Contact Information[/b]\n"
-		description += "📧 " + selected_entity.get("email", "N/A") + "\n"
+		var email_url = selected_entity.get("email_url", "")
+		if email_url and not email_url.is_empty():
+			description += "📧 [url=" + email_url + "]Contact via SWC Portal[/url]\n"
+		else:
+			description += "📧 N/A\n"
 		description += "📞 " + selected_entity.get("phone", "N/A") + "\n"
 		description += "🚪 Office: " + selected_entity.get("office", "N/A")
 	
@@ -271,3 +279,7 @@ func _on_action_pressed() -> void:
 				OS.shell_open(url)
 	
 	close()
+
+func _on_meta_clicked(meta: String) -> void:
+	# Handle clicking links in the info description (like email URLs)
+	OS.shell_open(meta)
