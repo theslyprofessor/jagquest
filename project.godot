@@ -78,3 +78,4 @@ jaggenie={
 [rendering]
 
 textures/canvas_textures/default_texture_filter=0
+quality/filters/anisotropic_filter_level=16

@@ -15,13 +15,12 @@ const BASE_FRICTION: float = 600.0
 # MASTER BOUNDS - All viewport/camera/player limits derive from these
 # =============================================================================
 # Campus map SVG dimensions (from campus_map.svg - THE ONLY MAP FILE)
-# SVG is 802.583 x 779.52 logical units
-# Godot import scale TBD - will calculate from actual texture size at runtime
+# SVG is 802.583 x 779.52 logical units, imported at 1x scale
+const SVG_SCALE: float = 6.0
 const SVG_WIDTH: float = 802.583
 const SVG_HEIGHT: float = 779.52
-# These will be updated based on actual Godot texture size
-const PLAYABLE_WIDTH: float = SVG_WIDTH * 2.0   # 1605.166 (assume 2x for now)
-const PLAYABLE_HEIGHT: float = SVG_HEIGHT * 2.0 # 1559.04 (assume 2x for now)
+const PLAYABLE_WIDTH: float = SVG_WIDTH * SVG_SCALE   # 802.583
+const PLAYABLE_HEIGHT: float = SVG_HEIGHT * SVG_SCALE # 779.52
 
 # UI bar is now in separate Control, not in SubViewport
 # SubViewport is exactly 1200x900 - no subtraction needed

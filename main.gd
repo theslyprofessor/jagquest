@@ -18,9 +18,16 @@ enum GameState {
 var current_state: GameState = GameState.CAMPUS_VIEW
 
 # Scene references
-@onready var overworld: Overworld = $Overworld
+@onready var overworld: Overworld = $Layout/GameViewContainer/GameViewport/Overworld
 @onready var jag_genie: JagGenie = $JagGenie
 @onready var transition_rect: ColorRect = $TransitionLayer/TransitionRect
+@onready var game_viewport: SubViewport = $Layout/GameViewContainer/GameViewport
+@onready var game_container: SubViewportContainer = $Layout/GameViewContainer
+
+# BottomBar UI references
+@onready var bottom_building_name: Label = $"Layout/BottomBar/MarginContainer/HBox/InfoPanel/BuildingName"
+@onready var bottom_building_desc: Label = $"Layout/BottomBar/MarginContainer/HBox/InfoPanel/BuildingDesc"
+@onready var bottom_programs_list: Label = $"Layout/BottomBar/MarginContainer/HBox/InfoPanel/ProgramsList"
 
 # Current room (if in ROOM_VIEW)
 var current_room: Node = null
@@ -47,6 +54,13 @@ func _setup_initial_state() -> void:
 	overworld.visible = true
 	jag_genie.visible = false
 	transition_rect.color = Color(0, 0, 0, 0)
+	
+	# Fix SubViewport size - must be set after layout is ready
+	await get_tree().process_frame
+	await get_tree().process_frame  # Wait another frame to be sure
+	var container_size = game_container.size
+	if game_viewport:
+		game_viewport.size = Vector2i(int(container_size.x), int(container_size.y))
 
 func _input(event: InputEvent) -> void:
 	# Global JagGenie toggle (Tab or G)

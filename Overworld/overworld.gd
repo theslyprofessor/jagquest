@@ -29,10 +29,10 @@ var target_position: Vector2 = Vector2.ZERO
 var current_location_entities: Array = []
 var current_location_index: int = 0
 
-# Map dimensions - based on campus_map.svg (THE ONLY MAP FILE)
-# SVG is 802.583 x 779.52 logical units, Godot imports at 2x scale
-const MAP_WIDTH: float = 1605.166  # 802.583 * 2
-const MAP_HEIGHT: float = 1559.04  # 779.52 * 2
+# Map dimensions - reference player constants (single source of truth)
+# These are calculated from SVG_SCALE in player.gd
+const MAP_WIDTH: float = JaguarPlayer.PLAYABLE_WIDTH
+const MAP_HEIGHT: float = JaguarPlayer.PLAYABLE_HEIGHT
 
 func _ready() -> void:
 	_setup_campus_map()

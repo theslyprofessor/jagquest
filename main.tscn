@@ -1,13 +1,121 @@
-[gd_scene load_steps=4 format=3 uid="uid://ccxnxenpkhrgx"]
+[gd_scene load_steps=6 format=3 uid="uid://ccxnxenpkhrgx"]
 
 [ext_resource type="Script" uid="uid://8hqve4gdrvwb" path="res://main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://Overworld/overworld.tscn" id="2_overworld"]
 [ext_resource type="PackedScene" path="res://JagGenie/jag_genie.tscn" id="3_jaggenie"]
+[ext_resource type="FontFile" path="res://Assets/JetBrainsMono-Regular.ttf" id="4_monofont"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bottombar"]
+bg_color = Color(0, 0, 0, 1)
+border_width_top = 2
+border_color = Color(0.85, 0.65, 0.2, 0.8)
 
 [node name="Main" type="Node"]
 script = ExtResource("1_main")
 
-[node name="Overworld" parent="." instance=ExtResource("2_overworld")]
+[node name="Layout" type="VBoxContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="GameViewContainer" type="SubViewportContainer" parent="Layout"]
+texture_filter = 0
+layout_mode = 2
+size_flags_vertical = 3
+stretch = true
+
+[node name="GameViewport" type="SubViewport" parent="Layout/GameViewContainer"]
+handle_input_locally = false
+render_target_update_mode = 4
+
+[node name="Overworld" parent="Layout/GameViewContainer/GameViewport" instance=ExtResource("2_overworld")]
+
+[node name="BottomBar" type="PanelContainer" parent="Layout"]
+custom_minimum_size = Vector2(0, 200)
+layout_mode = 2
+size_flags_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_bottombar")
+
+[node name="MarginContainer" type="MarginContainer" parent="Layout/BottomBar"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="HBox" type="HBoxContainer" parent="Layout/BottomBar/MarginContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="InfoPanel" type="VBoxContainer" parent="Layout/BottomBar/MarginContainer/HBox"]
+custom_minimum_size = Vector2(500, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 4
+theme_override_constants/separation = 8
+
+[node name="BuildingName" type="Label" parent="Layout/BottomBar/MarginContainer/HBox/InfoPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.8, 0.2, 1)
+theme_override_font_sizes/font_size = 20
+text = ""
+
+[node name="BuildingDesc" type="Label" parent="Layout/BottomBar/MarginContainer/HBox/InfoPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.9)
+theme_override_font_sizes/font_size = 14
+text = ""
+autowrap_mode = 2
+
+[node name="ProgramsList" type="Label" parent="Layout/BottomBar/MarginContainer/HBox/InfoPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 13
+text = ""
+autowrap_mode = 2
+
+[node name="Controls" type="Label" parent="Layout/BottomBar/MarginContainer/HBox/InfoPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.5)
+theme_override_font_sizes/font_size = 11
+text = "Click to enter  |  Option+Click walk  |  TAB JagGenie"
+
+[node name="Spacer" type="Control" parent="Layout/BottomBar/MarginContainer/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LogoPanel" type="VBoxContainer" parent="Layout/BottomBar/MarginContainer/HBox"]
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="Title" type="Label" parent="Layout/BottomBar/MarginContainer/HBox/LogoPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.65, 0.2, 1)
+theme_override_fonts/font = ExtResource("4_monofont")
+theme_override_font_sizes/font_size = 9
+text = "   /$$$$$                      /$$$$$$                                  /$$
+  |__  $$                     /$$__  $$                                | $$
+     | $$  /$$$$$$   /$$$$$$ | $$  \\ $$ /$$   /$$  /$$$$$$   /$$$$$$$ /$$$$$$
+     | $$ |____  $$ /$$__  $$| $$  | $$| $$  | $$ /$$__  $$ /$$_____/|_  $$_/
+/$$  | $$  /$$$$$$$| $$  \\ $$| $$  | $$| $$  | $$| $$$$$$$$|  $$$$$$   | $$
+| $$  | $$ /$$__  $$| $$  | $$| $$/$$ $$| $$  | $$| $$_____/ \\____  $$  | $$ /$$
+|  $$$$$$/|  $$$$$$$|  $$$$$$$|  $$$$$$/|  $$$$$$/|  $$$$$$$ /$$$$$$$/  |  $$$$/
+ \\______/  \\_______/ \\____  $$ \\____ $$$ \\______/  \\_______/|_______/    \\___/
+                     /$$  \\ $$      \\__/
+                    |  $$$$$$/
+                     \\______/"
+horizontal_alignment = 2
+
+[node name="NavControls" type="Label" parent="Layout/BottomBar/MarginContainer/HBox/LogoPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.6)
+theme_override_font_sizes/font_size = 11
+text = "WASD move  |  Drag pan  |  R/T zoom"
+horizontal_alignment = 2
 
 [node name="JagGenie" parent="." instance=ExtResource("3_jaggenie")]
 
