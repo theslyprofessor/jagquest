@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://Overworld/overworld.gd" id="1_overworld"]
 [ext_resource type="PackedScene" uid="uid://cqj7xwh3h8kx2" path="res://Player/player.tscn" id="2_player"]
-[ext_resource type="Texture2D" path="res://Assets/campus_map_clean.svg" id="3_campus_map"]
+[ext_resource type="Texture2D" path="res://Assets/campus_map.svg" id="3_campus_map"]
 
 [node name="Overworld" type="Node2D"]
 script = ExtResource("1_overworld")

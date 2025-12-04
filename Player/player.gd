@@ -14,13 +14,14 @@ const BASE_FRICTION: float = 600.0
 # =============================================================================
 # MASTER BOUNDS - All viewport/camera/player limits derive from these
 # =============================================================================
-# Campus map SVG dimensions (from campus_map.svg)
-# SVG is 803 x 780 pixels, imported at 2x scale for crisp zoom
-const SVG_SCALE: float = 2.0
-const SVG_WIDTH: float = 803.0
-const SVG_HEIGHT: float = 780.0
-const PLAYABLE_WIDTH: float = SVG_WIDTH * SVG_SCALE   # 6424
-const PLAYABLE_HEIGHT: float = SVG_HEIGHT * SVG_SCALE # 6240
+# Campus map SVG dimensions (from campus_map.svg - THE ONLY MAP FILE)
+# SVG is 802.583 x 779.52 logical units
+# Godot import scale TBD - will calculate from actual texture size at runtime
+const SVG_WIDTH: float = 802.583
+const SVG_HEIGHT: float = 779.52
+# These will be updated based on actual Godot texture size
+const PLAYABLE_WIDTH: float = SVG_WIDTH * 2.0   # 1605.166 (assume 2x for now)
+const PLAYABLE_HEIGHT: float = SVG_HEIGHT * 2.0 # 1559.04 (assume 2x for now)
 
 # UI bar is now in separate Control, not in SubViewport
 # SubViewport is exactly 1200x900 - no subtraction needed
@@ -111,9 +112,13 @@ func _recalculate_zoom() -> void:
 	var zoom_to_fit_width = viewport_size.x / PLAYABLE_WIDTH
 	var zoom_to_fit_height = viewport_size.y / PLAYABLE_HEIGHT
 	min_camera_zoom = min(zoom_to_fit_width, zoom_to_fit_height)
+	
+	# Add 5% margin to ensure entire map is visible
+	min_camera_zoom *= 0.95
+	
 	print("Min camera zoom: ", min_camera_zoom)
 	
-	# Set initial zoom
+	# Set initial zoom to show entire map
 	if camera:
 		camera.zoom = Vector2(min_camera_zoom, min_camera_zoom)
 	

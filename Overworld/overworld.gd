@@ -29,12 +29,10 @@ var target_position: Vector2 = Vector2.ZERO
 var current_location_entities: Array = []
 var current_location_index: int = 0
 
-# Map dimensions - based on Inkscape-converted SVG (816 x 1344) at 4x import scale
-# SVG is portrait orientation
-# The bottom portion is the legend/directory - we exclude that from playable area
-const MAP_WIDTH: float = 3264.0  # 816 * 4
-const MAP_HEIGHT: float = 5376.0  # 1344 * 4
-const MAP_PLAYABLE_HEIGHT: float = 3900.0  # Playable up to OTAY LAKES ROAD (before legend)
+# Map dimensions - based on campus_map.svg (THE ONLY MAP FILE)
+# SVG is 802.583 x 779.52 logical units, Godot imports at 2x scale
+const MAP_WIDTH: float = 1605.166  # 802.583 * 2
+const MAP_HEIGHT: float = 1559.04  # 779.52 * 2
 
 func _ready() -> void:
 	_setup_campus_map()
